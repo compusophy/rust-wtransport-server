@@ -1,41 +1,27 @@
-# Use the official Rust image
-FROM rust:1.75-slim as builder
+# Use the official Rust image for building and running
+FROM rust:1.75-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app
 
-# Copy cargo files
-COPY Cargo.toml Cargo.lock ./
-
-# Copy source code
-COPY src ./src
+# Copy the entire project
+COPY . .
 
 # Build the application in release mode
 RUN cargo build --release
 
-# Create a minimal runtime image
-FROM debian:bookworm-slim
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+# Move binary to a standard location
+RUN cp target/release/game_server /usr/local/bin/game_server
 
 # Create a non-root user
-RUN useradd -m appuser
-
-# Copy the binary from builder stage
-COPY --from=builder /app/target/release/game_server /usr/local/bin/game_server
-
-# Change ownership to appuser
-RUN chown appuser:appuser /usr/local/bin/game_server
+RUN useradd -m appuser && chown appuser:appuser /usr/local/bin/game_server
 
 # Switch to non-root user
 USER appuser
