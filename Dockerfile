@@ -11,8 +11,14 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy the entire project
-COPY . .
+# Copy dependency specification first for better caching
+COPY Cargo.toml ./
+
+# Fetch dependencies to cache them
+RUN cargo fetch
+
+# Copy source code
+COPY src ./src
 
 # Build the application in release mode
 RUN cargo build --release
