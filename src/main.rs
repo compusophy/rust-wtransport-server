@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::net::SocketAddr;
 use tokio::sync::{broadcast, RwLock};
 use tokio::io::AsyncReadExt;
 use wtransport::{Endpoint, ServerConfig, Identity};
@@ -28,16 +29,26 @@ type GameState = Arc<RwLock<HashMap<String, Player>>>;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Get port from environment or default to 4433
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "4433".to_string())
+        .parse::<u16>()
+        .unwrap_or(4433);
+    
+    println!("Starting WebTransport server on port {}", port);
+    
     // Generate self-signed certificate for development
     let identity = generate_self_signed_identity().await?;
     
+    let bind_addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
+    
     let config = ServerConfig::builder()
-        .with_bind_default(4433)
+        .with_bind_address(bind_addr)
         .with_identity(identity)
         .build();
     
     let server = Endpoint::server(config)?;
-    println!("WebTransport server running on https://localhost:4433");
+    println!("WebTransport server running on https://0.0.0.0:{}", port);
     
     let game_state = GameState::default();
     let (tx, _rx) = broadcast::channel::<GameMessage>(100);
