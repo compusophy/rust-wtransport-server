@@ -1,5 +1,5 @@
-# Use the official Rust image for building and running
-FROM rust:1.77-slim
+# Use the latest official Rust image for building and running
+FROM rust:latest
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
