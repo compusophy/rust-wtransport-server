@@ -23,7 +23,7 @@ A high-performance WebTransport game server built in Rust for real-time multipla
 
 ### Prerequisites
 
-- Rust 1.70+ 
+- Rust 1.81+ 
 - Cargo
 
 ### Running Locally
@@ -37,26 +37,72 @@ cd rust-wtransport-server
 cargo run
 ```
 
-The server will start on `https://localhost:4433` with a self-signed certificate.
+The server will start on `https://localhost:8080` with a self-signed certificate.
 
 ### Environment Variables
 
-- `PORT` - Server port (defaults to 4433)
+- `PORT` - Server port (defaults to 8080)
 - `RUST_LOG` - Logging level (info, debug, warn, error)
 
-## Railway Deployment
+## Cloud Deployment
 
-This server is configured for one-click deployment on [Railway](https://railway.app):
+### Google Cloud Run (Recommended for WebTransport)
 
-1. Fork this repository
-2. Connect your GitHub account to Railway
-3. Create a new project from your repository
-4. Railway will automatically detect and deploy the Rust application
+Google Cloud Run provides experimental HTTP/3 support, making it ideal for WebTransport servers.
 
-The server will be automatically configured with:
-- Environment-based port binding
-- Production-optimized builds
-- Automatic TLS certificate generation
+#### Prerequisites
+- Google Cloud account with billing enabled
+- Google Cloud CLI installed and authenticated
+- Docker installed (for local testing)
+
+#### Quick Deploy
+
+1. **Enable APIs and set up project:**
+```bash
+# Set your project ID
+export PROJECT_ID="your-project-id"
+gcloud config set project $PROJECT_ID
+
+# Enable required APIs
+gcloud services enable cloudbuild.googleapis.com run.googleapis.com
+```
+
+2. **Deploy using the script:**
+```bash
+# Make script executable
+chmod +x deploy-cloudrun.sh
+
+# Deploy (replace with your actual project ID)
+./deploy-cloudrun.sh your-project-id
+```
+
+3. **Get your server URL:**
+The script will output your live server URL like:
+```
+https://rust-wtransport-server-hash.a.run.app
+```
+
+#### Manual Deploy
+```bash
+# Build and deploy manually
+gcloud builds submit --tag gcr.io/$PROJECT_ID/rust-wtransport-server
+gcloud run deploy rust-wtransport-server \
+  --image gcr.io/$PROJECT_ID/rust-wtransport-server \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --memory 512Mi \
+  --timeout 3600
+```
+
+### Railway Deployment (Static Frontend)
+
+Railway works great for static frontends but has limitations with WebTransport/HTTP3.
+
+1. Connect your GitHub account to Railway
+2. Create a new project from your repository
+3. Railway will automatically detect and deploy the Rust application
 
 ## Architecture
 
@@ -71,17 +117,30 @@ The server will be automatically configured with:
 Clients can connect using the WebTransport API in modern browsers:
 
 ```javascript
-const transport = new WebTransport('https://your-server.railway.app');
+// Connect to your deployed server
+const transport = new WebTransport('https://your-server-url.run.app');
 await transport.ready;
 
-// Send messages via datagrams
+// Send messages via datagrams (fast, unreliable)
 const writer = transport.datagrams.writable.getWriter();
 await writer.write(messageData);
 
 // Receive messages
 const reader = transport.datagrams.readable.getReader();
 const { value } = await reader.read();
+
+// Or use streams for reliable delivery
+const stream = await transport.createUnidirectionalStream();
+const streamWriter = stream.writable.getWriter();
+await streamWriter.write(messageData);
 ```
+
+## Production Notes
+
+- **HTTP/3 Support**: Google Cloud Run provides experimental HTTP/3
+- **Scaling**: Configured for 1-10 instances with 1000 concurrent connections
+- **Timeouts**: 3600s timeout for long-lived WebTransport connections
+- **Resources**: 512Mi memory, 1 CPU core optimized for real-time processing
 
 ## License
 

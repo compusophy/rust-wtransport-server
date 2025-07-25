@@ -28,9 +28,9 @@ type GameState = Arc<RwLock<HashMap<String, Player>>>;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Use Railway's PORT environment variable, fallback to 4433 for local dev
+    // Use Cloud Run's PORT environment variable, fallback to 8080
     let port = std::env::var("PORT")
-        .unwrap_or_else(|_| "4433".to_string())
+        .unwrap_or_else(|_| "8080".to_string())
         .parse::<u16>()
         .expect("PORT must be a valid number");
     
@@ -45,6 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     
     let server = Endpoint::server(config)?;
     println!("🚀 WebTransport server running on 0.0.0.0:{}", port);
+    println!("🌐 Ready for WebTransport connections!");
     
     let game_state = GameState::default();
     let (tx, _rx) = broadcast::channel::<GameMessage>(100);
@@ -63,11 +64,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 async fn generate_self_signed_identity() -> Result<Identity, Box<dyn std::error::Error + Send + Sync>> {
-    // Include Railway domain in certificate
+    // Include common deployment domains in certificate
     let domains = vec![
         "localhost".into(),
-        "rust-wtransport-server-production.up.railway.app".into(),
-        "0.0.0.0".into()
+        "0.0.0.0".into(),
+        // Google Cloud Run patterns
+        "*.run.app".into(),
+        "*.a.run.app".into(),
+        // Railway pattern (for testing)
+        "*.up.railway.app".into(),
     ];
     
     let cert = rcgen::generate_simple_self_signed(domains)?;
