@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::net::SocketAddr;
 use tokio::sync::{broadcast, RwLock};
 use tokio::io::AsyncReadExt;
 use wtransport::{Endpoint, ServerConfig, Identity};
@@ -29,26 +28,23 @@ type GameState = Arc<RwLock<HashMap<String, Player>>>;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    // Get port from environment or default to 4433
+    // Use Railway's PORT environment variable, fallback to 4433 for local dev
     let port = std::env::var("PORT")
         .unwrap_or_else(|_| "4433".to_string())
         .parse::<u16>()
-        .unwrap_or(4433);
+        .expect("PORT must be a valid number");
     
-    println!("Starting WebTransport server on port {}", port);
+    println!("🚀 Starting WebTransport server on port {}", port);
     
-    // Generate self-signed certificate for development
     let identity = generate_self_signed_identity().await?;
     
-    let bind_addr: SocketAddr = format!("0.0.0.0:{}", port).parse().unwrap();
-    
     let config = ServerConfig::builder()
-        .with_bind_address(bind_addr)
+        .with_bind_default(port)  // Use dynamic port
         .with_identity(identity)
         .build();
     
     let server = Endpoint::server(config)?;
-    println!("WebTransport server running on https://0.0.0.0:{}", port);
+    println!("🚀 WebTransport server running on 0.0.0.0:{}", port);
     
     let game_state = GameState::default();
     let (tx, _rx) = broadcast::channel::<GameMessage>(100);
@@ -67,21 +63,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 async fn generate_self_signed_identity() -> Result<Identity, Box<dyn std::error::Error + Send + Sync>> {
-    // Generate a self-signed certificate using rcgen
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+    // Include Railway domain in certificate
+    let domains = vec![
+        "localhost".into(),
+        "rust-wtransport-server-production.up.railway.app".into(),
+        "0.0.0.0".into()
+    ];
     
-    // Convert to PEM format
+    let cert = rcgen::generate_simple_self_signed(domains)?;
+    
     let cert_pem = cert.cert.pem();
     let key_pem = cert.key_pair.serialize_pem();
     
-    // Create temporary files
     tokio::fs::write("cert.pem", cert_pem).await?;
     tokio::fs::write("key.pem", key_pem).await?;
     
-    // Load the identity from the PEM files
     let identity = Identity::load_pemfiles("cert.pem", "key.pem").await?;
     
-    // Clean up temporary files
     let _ = tokio::fs::remove_file("cert.pem").await;
     let _ = tokio::fs::remove_file("key.pem").await;
     
